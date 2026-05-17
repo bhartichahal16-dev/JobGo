@@ -28,16 +28,16 @@ const AddJob = () => {
         {headers:{token:companyToken}}
       )
       if(data.success){
-        toast.success(data.message)
+        toast.success('Job Post Successfully')
         setTitle('')
         setSalary(0)
         quillRef.current.root.innerHTML = ""
       }
       else{
-        toast.error(data.message)
+        toast.error('Job not post Successfully')
       }
     } catch (error) {
-      toast.error(error.message)
+      toast.error('Job not post Successfully')
     }
   }
   useEffect(() => {
