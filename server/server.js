@@ -1,7 +1,9 @@
+import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
 import "./config/instrument.js";
 import express from "express";
 import cors from "cors";
-import "dotenv/config";
 import connectDB from "./config/db.js";
 import * as Sentry from "@sentry/node";
 import {clerkWebhooks} from './controllers/webhooks.js'
@@ -19,9 +21,14 @@ const app = express();
 await connectDB()
 await connectCloudinary()
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 // Middlewares
 app.use(cors());
+// Clerk webhook must receive raw body for signature verification
+app.post('/webhooks', express.raw({ type: 'application/json' }), clerkWebhooks)
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(clerkMiddleware())
 
 // Routes
@@ -29,7 +36,6 @@ app.get("/", (req, res) => res.send("API Working"));
 app.get("/debug-sentry", function mainHandler(req,res){
    throw new Error("My first Sentry error!");
 });
-app.post('/webhooks',clerkWebhooks)
 app.use('/api/company',companyRoutes)
 app.use('/api/jobs',jobRoutes)
 app.use('/api/users',userRouter)

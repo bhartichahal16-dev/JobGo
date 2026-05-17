@@ -70,8 +70,8 @@ const RecruiterLogin = () => {
       }
     }
     catch(error){
-      toast.error(error.message)
-
+      const message = error.response?.data?.message || error.message
+      toast.error(message)
     }
 
 

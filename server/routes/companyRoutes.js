@@ -26,7 +26,7 @@ router.get('/list-jobs', protectCompany,getCompanyPostedJobs)
 // Change Applications Status
 router.post('/change-status', protectCompany, ChangeJobApplicationsStatus)
 
-// Change Applications Visiblity 
-router.post('/change-visiblity', protectCompany, changeVisiblity)
+// Change job visibility
+router.post('/change-visibility', protectCompany, changeVisiblity)
 
 export default router

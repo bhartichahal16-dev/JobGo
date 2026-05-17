@@ -1,9 +1,9 @@
-import React, { useContext, useState } from 'react'
+import React, { useContext, useState, useEffect } from 'react'
 import { assets, viewApplicationsPageData } from '../assets/assets'
 import AppContext from '../context/AppContext'
 import axios from 'axios'
 import Loading from '../components/Loading'
-
+import { toast } from 'react-toastify'
 const ViewApplications = () => {
 
   const {backendUrl, companyToken} = useContext(AppContext)
@@ -25,7 +25,8 @@ const ViewApplications = () => {
       }
     } 
     catch(error){
-      toast.error(error.message)
+      toast.error(error.response?.data?.message || error.message)
+      setApplicants([])
     }
   }
 
@@ -72,7 +73,7 @@ const ViewApplications = () => {
                 </tr>
               </thead>
               <tbody>
-                {applicants.filter( item => item.jobId & item.userId).map((applicant, index)=>(
+                {applicants.filter(item => item.jobId && item.userId).map((applicant, index)=>(
                   <tr key={index} className='text-gray-700'>
                      <td className='py-2 px-4 border-b text-center'>{index+1}</td>
                      <td className='py-2 px-4 border-b text-center flex items-center'>

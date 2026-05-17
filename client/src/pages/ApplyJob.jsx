@@ -10,19 +10,21 @@ import moment from 'moment';
 import JobCard from '../components/JobCard'
 import Footer from '../components/Footer'
 import axios from 'axios'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
+import { toast } from 'react-toastify'
 
 const ApplyJob = () => {
   
   const { id } = useParams()
 
-  const {getToken} = useAuth()
+  const { getToken, isSignedIn } = useAuth()
+  const { isLoaded } = useUser()
 
   const navigate = useNavigate()
   const [JobData, setJobData] = useState(null)
 
   const [isAlreadyApplied, setIsAlreadyApplied] = useState(false)
-  const {jobs,backendUrl, userData, userApplications, fetchUserApplications } = useContext(AppContext)
+  const {jobs,backendUrl, userData, userApplications, fetchUserData, fetchUserApplications } = useContext(AppContext)
   const fetchJob = async () => {
     // const data = jobs.filter(job => job._id === id)
     // if(data.length !==0){
@@ -46,16 +48,27 @@ const ApplyJob = () => {
 
   const applyHandler = async () => {
     try{
-       if(userData){
-        return toast.error('Login to apply for jobs')
+       if (!isLoaded) return
+
+       if (!isSignedIn) {
+        return toast.error('Please login to apply for jobs')
        }
-       
-       if(!userData.resume){
+
+       let currentUser = userData
+       if (!currentUser?.resume) {
+        currentUser = await fetchUserData()
+       }
+
+       if (!currentUser?.resume) {
+        toast.error('Please upload your resume to apply for jobs')
         navigate('/applications')
-        return toast.error('Upload your resume to apply for jobs')
+        return
        }
 
        const token = await getToken()
+       if (!token) {
+        return toast.error('Please login to apply for jobs')
+       }
 
        const {data} = await axios.post(backendUrl+'/api/users/apply',
         {jobId:JobData._id},
@@ -72,12 +85,12 @@ const ApplyJob = () => {
 
     }
     catch(error){
-      toast.error(error.message)
+      toast.error(error.response?.data?.message || error.message)
     }
   }
 
   const checkAlreadyApplied = () => {
-    const hasApplied = userApplications.some(item,jobId._id === JobData._id )
+    const hasApplied = userApplications.some(item => item.jobId?._id === JobData._id)
 
     setIsAlreadyApplied(hasApplied)
 

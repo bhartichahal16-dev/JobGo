@@ -1,19 +1,19 @@
 import Job from '../models/Job.js'
 import JobApplication from "../models/JobApplication.js"
-import User from "../models/User.js"
-import {v2 as cloudinary} from 'cloudinary'
+import { uploadFile } from '../utilis/uploadFile.js'
+import getOrCreateUser from '../utilis/getOrCreateUser.js'
+import { getAuthUserId } from '../utilis/auth.js'
 
 // Get user data
 export const getUserData = async(req,res) => {
-    const userId = req.auth.userId
+    const userId = getAuthUserId(req)
+
+    if (!userId) {
+        return res.json({ success: false, message: 'Unauthorized. Please login again.' })
+    }
 
     try {
-        
-        const user = await User.findById(userId)
-
-        if(!user){
-            return res.json({success: false, message: 'User Not Found'})
-        }
+        const user = await getOrCreateUser(userId)
         res.json({success:true,user})
     } catch (error) {
         res.json({success:false, message: error.message})
@@ -23,11 +23,21 @@ export const getUserData = async(req,res) => {
 // Apply for a job
 export const applyforJob = async(req,res) => {
 
-    const {jobId} = res.body
+    const {jobId} = req.body
 
-    const userId = req.auth.userId
+    const userId = getAuthUserId(req)
+
+    if (!userId) {
+        return res.json({ success: false, message: 'Unauthorized. Please login again.' })
+    }
 
     try{
+        const user = await getOrCreateUser(userId)
+
+        if(!user.resume){
+            return res.json({success:false, message:'Please upload your resume before applying'})
+        }
+
         const isAlreadyApplied = await JobApplication.find({jobId,userId})
 
         if(isAlreadyApplied.length > 0){
@@ -55,16 +65,16 @@ export const applyforJob = async(req,res) => {
 
 // Get user applied applications
 export const getUserJobApplications = async(req,res) => {
-    try{
-        const userId = req.auth.userId
+    const userId = getAuthUserId(req)
 
-        const application = await JobApplication.find({userId}).populate('companyId','name email image')
+    if (!userId) {
+        return res.json({ success: false, message: 'Unauthorized. Please login again.' })
+    }
+
+    try{
+        const applications = await JobApplication.find({userId}).populate('companyId','name email image')
         .populate('jobId','title description location category level salary')
         .exec()
-        
-        if(!application){
-            return res.json({success : false, message:'No job application found for this user'})
-        }
 
         return res.json({success:true, applications})
     }
@@ -75,28 +85,28 @@ export const getUserJobApplications = async(req,res) => {
 
 // update user profile (resume)
 export const updateUserResume = async(req,res) => {
-    try{
-        const userId = req.auth.userId
+    const userId = getAuthUserId(req)
 
+    if (!userId) {
+        return res.json({ success: false, message: 'Unauthorized. Please login again.' })
+    }
+
+    try{
         const resumeFile = req.file
 
-        const userData = await User.findById(userId)
-
-        if(resumeFile){
-            const resumeUpload = await cloudinary.uploader.upload(resumeFile.path)
-            userData.resume = resumeUpload.secure_url
+        if(!resumeFile){
+            return res.json({success:false, message: 'Resume file is required'})
         }
+
+        const userData = await getOrCreateUser(userId)
+
+        userData.resume = await uploadFile(resumeFile.path, "raw")
 
         await userData.save()
 
-        return res.json({success:true, message:'Resume Updated'})
+        return res.json({success:true, message:'Resume Updated', user: userData})
     }
     catch(error){
         res.json({success:false, message: error.message})
-
-
     }
-
-
-
 }

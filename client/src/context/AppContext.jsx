@@ -9,9 +9,9 @@ export const AppContextProvider = (props) => {
     
     const backendUrl = import.meta.env.VITE_BACKEND_URL
 
-    const {user} = useUser()
+    const { user, isLoaded } = useUser()
 
-    const {getToken} = useAuth()
+    const { getToken, isSignedIn } = useAuth()
 
     const [searchFilter, setSearchFilter] = useState({
         title:'',
@@ -47,37 +47,57 @@ export const AppContextProvider = (props) => {
           }
         }
         catch (error) {
-            toast.error(error.message)
+            const message = error.response?.data?.message || error.message
+            toast.error(message)
         }
 
+    }
+
+    // Clear expired recruiter session (JWT "invalid signature" from old/wrong token)
+    const clearCompanySession = () => {
+        localStorage.removeItem('companyToken')
+        setCompanyToken(null)
+        setCompanyData(null)
     }
 
     // function to fetch company data
     const fetchCompanyData = async() => {
         try {
-            const {data} = await axios.get(backendUrl + '/api/company/company', {header:{token:companyToken}})
+            const {data} = await axios.get(backendUrl + '/api/company/company', {headers:{token:companyToken}})
 
             if(data.success){
                 setCompanyData(data.company)
-                console.log(data);
             }
             else{
+                if (data.message?.toLowerCase().includes('invalid signature')) {
+                    clearCompanySession()
+                    return
+                }
                 toast.error(data.message)
             }
         } catch (error) {
-            toast.error(error.message)
+            const message = error.response?.data?.message || error.message
+            if (message?.toLowerCase().includes('invalid signature')) {
+                clearCompanySession()
+                return
+            }
+            toast.error(message)
         }
     }
 
     // function to fetch user data
     const fetchUserData = async () => {
         try {
+            if (!isSignedIn) return
 
             const token = await getToken()
+            if (!token) return
+
             const {data} = await axios.get(backendUrl + '/api/users/user', {headers:{Authorization:`Bearer ${token}`}})
 
             if(data.success){
                 setUserData(data.user)
+                return data.user
             }
             else{
                 toast.error(data.message)
@@ -85,15 +105,21 @@ export const AppContextProvider = (props) => {
 
         }
         catch(error){
-            toast.error(error.message)
+            if (isSignedIn) {
+                toast.error(error.response?.data?.message || error.message)
+            }
         }
+        return null
     }
 
     // Function to fetch user applied applications data
     const fetchUserApplications = async () =>
     {
         try{
-           const token = await getToken()
+            if (!isSignedIn) return
+
+            const token = await getToken()
+            if (!token) return
 
            const {data} = await axios.get(backendUrl + '/api/users/applications', {headers:{Authorization:`Bearer ${token}`}}
          )
@@ -105,7 +131,9 @@ export const AppContextProvider = (props) => {
         }
     }
         catch(error){
-            toast.error(error.message)
+            if (isSignedIn) {
+                toast.error(error.response?.data?.message || error.message)
+            }
         }
     }
 
@@ -126,11 +154,11 @@ export const AppContextProvider = (props) => {
     },[companyToken])
 
     useEffect(() => {
-        if(user){
+        if(isLoaded && isSignedIn && user){
             fetchUserData()
             fetchUserApplications()
         }
-    },[user])
+    },[isLoaded, isSignedIn, user])
 
     const value = {
         setSearchFilter,searchFilter, 

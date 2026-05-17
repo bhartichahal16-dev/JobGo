@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { manageJobsData } from '../assets/assets'
 import moment from 'moment'
 import { useNavigate } from 'react-router-dom'
@@ -20,19 +20,20 @@ const ManageJobs = () => {
   const fetchCompanyJobs = async () => {
 
     try {
-      const {data} = await axios.get(backendUrl + 'api/company/list-jobs',
-        {header:{token:companyToken}}
+      const {data} = await axios.get(backendUrl + '/api/company/list-jobs',
+        {headers:{token:companyToken}}
       )
 
       if(data.success){
         setJobs(data.jobsData.reverse())
-        console.log(data.jobsData)
       }
       else{
         toast.error(data.message)
+        setJobs([])
       }
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.response?.data?.message || error.message)
+      setJobs([])
     }
 
   }
@@ -40,18 +41,20 @@ const ManageJobs = () => {
   // Function to change job visibility
   const changeVisibility = async (id) => {
        try {
-        const {data} = await axios.post(backendUrl + 'api/company/change-visibility',
+        const {data} = await axios.post(backendUrl + '/api/company/change-visibility',
         { id },
         {headers:{token:companyToken}}
       )
       if(data.success){
-        toast.success(data.message)
+        fetchCompanyJobs()
       }
       else{
         toast.error(data.message)
+        fetchCompanyJobs()
       }
        } catch (error) {
-        toast.error(error.message)
+        toast.error(error.response?.data?.message || error.message)
+        fetchCompanyJobs()
        }
   }
 

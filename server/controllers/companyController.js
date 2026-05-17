@@ -1,7 +1,7 @@
 import Company from "../models/Company.js";
 import bcrypt from 'bcrypt'
-import {v2 as cloudinary} from 'cloudinary'
 import generateToken from "../utilis/generateToken.js";
+import { uploadFile } from "../utilis/uploadFile.js";
 import Job from "../models/Job.js";
 import JobApplication from "../models/JobApplication.js";
 
@@ -27,13 +27,13 @@ export const registerCompany = async (req,res) => {
         const salt = await bcrypt.genSalt(10)
         const hashPassword = await bcrypt.hash(password, salt)
 
-        const imageUpload = await cloudinary.uploader.upload(imageFile.path)
+        const imageUrl = await uploadFile(imageFile.path)
 
         const company = await Company.create({
             name, 
             email,
             password : hashPassword,
-            image: imageUpload.secure_url
+            image: imageUrl
         })
 
         res.json({
@@ -59,6 +59,10 @@ export const loginCompany = async (req,res) => {
 
     try{
         const company = await Company.findOne({email})
+
+        if(!company){
+            return res.json({success:false, message:'Invalid email or password'})
+        }
 
         if(await bcrypt.compare(password, company.password)){
             res.json({
@@ -104,7 +108,7 @@ export const getCompanyData = async (req,res) => {
 // Post a new job 
 export const postJob = async (req,res) => {
   
-    const {title, description, location, salary, level, category} = res.body
+    const {title, description, location, salary, level, category} = req.body
 
     const companyId = req.company._id
 
@@ -200,14 +204,20 @@ export const changeVisiblity = async(req,res) => {
 
         const job = await Job.findById(id)
 
-        if(companyId.toString() === job.companyId.toString()){
-            job.visible = !job.visible
+        if(!job){
+            return res.json({success:false, message:'Job not found'})
         }
+
+        if(companyId.toString() !== job.companyId.toString()){
+            return res.json({success:false, message:'Not authorized to update this job'})
+        }
+
+        job.visible = !job.visible
         await job.save()
 
         res.json({success:true, job})
 
     } catch (error) {
-        res.json({success:false,message:error})
+        res.json({success:false, message:error.message})
     }
 }
