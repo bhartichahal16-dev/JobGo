@@ -27,7 +27,7 @@ export const registerCompany = async (req,res) => {
         const salt = await bcrypt.genSalt(10)
         const hashPassword = await bcrypt.hash(password, salt)
 
-        const imageUrl = await uploadFile(imageFile.path)
+        const imageUrl = await uploadFile(imageFile)
 
         const company = await Company.create({
             name, 
@@ -49,6 +49,7 @@ export const registerCompany = async (req,res) => {
 
     }
     catch(error){
+        console.error("registerCompany:", error.message)
         res.json({success:false, message:error.message})
     }
 }

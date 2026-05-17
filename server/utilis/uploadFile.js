@@ -1,3 +1,4 @@
+import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { v2 as cloudinary } from "cloudinary"
@@ -5,21 +6,61 @@ import { v2 as cloudinary } from "cloudinary"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export const uploadsDir = path.join(__dirname, "..", "uploads")
 
-const getBaseUrl = () =>
-    process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`
+const getBaseUrl = () => {
+    if (process.env.SERVER_URL?.trim()) {
+        return process.env.SERVER_URL.trim().replace(/\/$/, "")
+    }
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`
+    }
+    return `http://localhost:${process.env.PORT || 5000}`
+}
 
-export const uploadFile = async (filePath, resourceType = "auto") => {
-    const filename = path.basename(filePath)
-    const localUrl = `${getBaseUrl()}/uploads/${encodeURIComponent(filename)}`
+const uploadBuffer = (buffer, resourceType) =>
+    new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { resource_type: resourceType },
+            (error, result) => {
+                if (error) reject(error)
+                else resolve(result.secure_url)
+            }
+        )
+        stream.end(buffer)
+    })
+
+export const uploadFile = async (file, resourceType = "auto") => {
+    if (!file) {
+        throw new Error("No file provided")
+    }
 
     try {
-        const result = await cloudinary.uploader.upload(filePath, {
-            resource_type: resourceType,
-        })
-        return result.secure_url
+        if (file.buffer) {
+            return await uploadBuffer(file.buffer, resourceType)
+        }
+
+        if (file.path) {
+            const result = await cloudinary.uploader.upload(file.path, {
+                resource_type: resourceType,
+            })
+            return result.secure_url
+        }
+
+        throw new Error("Invalid file upload")
     } catch (error) {
-        // Cloudinary upload blocked or misconfigured — use local file (dev-friendly)
-        console.warn("Cloudinary upload failed, using local storage:", error.message)
-        return localUrl
+        // Local dev fallback. Vercel must use Cloudinary (no persistent disk).
+        if (!process.env.VERCEL && file.buffer) {
+            console.warn("Cloudinary upload failed, using local storage:", error.message)
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true })
+            }
+            const filename = `${Date.now()}-${file.originalname || "upload"}`
+            const filePath = path.join(uploadsDir, filename)
+            fs.writeFileSync(filePath, file.buffer)
+            return `${getBaseUrl()}/uploads/${encodeURIComponent(filename)}`
+        }
+
+        throw new Error(
+            error.message || "File upload failed. Check Cloudinary keys in server environment variables."
+        )
     }
 }
