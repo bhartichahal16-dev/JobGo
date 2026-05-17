@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import AppContext from '../context/AppContext'
 import { assets } from '../assets/assets'
@@ -12,6 +12,8 @@ import Footer from '../components/Footer'
 import axios from 'axios'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { toast } from 'react-toastify'
+import { calculateAtsScore, extractJobKeywords, getScoreColor } from '../utils/atsScore'
+import { extractTextFromResumeUrl } from '../utils/resumeText'
 
 const ApplyJob = () => {
   
@@ -24,6 +26,10 @@ const ApplyJob = () => {
   const [JobData, setJobData] = useState(null)
 
   const [isAlreadyApplied, setIsAlreadyApplied] = useState(false)
+  const [atsScore, setAtsScore] = useState(null)
+  const [atsLoading, setAtsLoading] = useState(false)
+  const [atsError, setAtsError] = useState(null)
+
   const {jobs,backendUrl, userData, userApplications, fetchUserData, fetchUserApplications } = useContext(AppContext)
   const fetchJob = async () => {
     // const data = jobs.filter(job => job._id === id)
@@ -107,7 +113,111 @@ const ApplyJob = () => {
     }
   },[JobData,userApplications,id])
 
+  useEffect(() => {
+    let cancelled = false
 
+    const runAtsCheck = async () => {
+      setAtsScore(null)
+      setAtsError(null)
+
+      if (!JobData || !isLoaded || !isSignedIn) return
+
+      let resumeUrl = userData?.resume
+      if (!resumeUrl) {
+        const user = await fetchUserData()
+        resumeUrl = user?.resume
+      }
+
+      if (!resumeUrl) return
+
+      setAtsLoading(true)
+      try {
+        const resumeText = await extractTextFromResumeUrl(resumeUrl)
+        const jobKeywords = extractJobKeywords(JobData)
+        const result = calculateAtsScore(resumeText, jobKeywords)
+
+        if (!cancelled) {
+          setAtsScore(result.score)
+        }
+      } catch {
+        if (!cancelled) {
+          setAtsError('Could not read resume for ATS check')
+        }
+      } finally {
+        if (!cancelled) {
+          setAtsLoading(false)
+        }
+      }
+    }
+
+    runAtsCheck()
+
+    return () => {
+      cancelled = true
+    }
+  }, [JobData, isLoaded, isSignedIn, userData?.resume, id])
+
+  const renderAtsLabel = () => {
+    if (!isSignedIn) return null
+
+    if (atsLoading) {
+      return <p className='text-sm text-gray-500'>Checking ATS Score...</p>
+    }
+
+    if (atsError) {
+      return <p className='text-sm text-gray-500'>{atsError}</p>
+    }
+
+    if (atsScore === null) {
+      if (!userData?.resume) {
+        return (
+          <p className='text-sm text-gray-500'>
+            <Link to='/applications' className='text-blue-600 hover:underline'>
+              Upload resume
+            </Link>{' '}
+            to see ATS Score
+          </p>
+        )
+      }
+      return null
+    }
+
+    return (
+      <p className={`text-sm font-semibold ${getScoreColor(atsScore)}`}>
+        ATS Score: {atsScore}%
+      </p>
+    )
+  }
+
+  const renderApplyBlock = (align = 'end') => {
+    const rowClass =
+      align === 'end'
+        ? 'justify-end max-md:justify-center'
+        : 'justify-start'
+
+    return (
+      <div className={`flex flex-col gap-2 ${align === 'end' ? 'items-end max-md:items-center' : 'items-start'}`}>
+        <div className={`flex flex-wrap items-center gap-3 ${rowClass}`}>
+          {!isAlreadyApplied && renderAtsLabel()}
+          <button
+            onClick={applyHandler}
+            disabled={isAlreadyApplied}
+            className='bg-blue-600 p-2.5 px-10 text-white rounded disabled:opacity-60 disabled:cursor-not-allowed'
+          >
+            {isAlreadyApplied ? 'Already Applied' : 'Apply Now'}
+          </button>
+        </div>
+        {!isAlreadyApplied && atsScore !== null && atsScore < 50 && (
+          <Link
+            to='/applications'
+            className={`text-xs text-blue-600 hover:underline ${align === 'end' ? 'max-md:text-center' : ''}`}
+          >
+            Update resume to improve score
+          </Link>
+        )}
+      </div>
+    )
+  }
 
   return JobData ?  (
     <>
@@ -139,9 +249,9 @@ const ApplyJob = () => {
                               </div>
                         </div>
                      </div>
-                     <div className='flex flex-col justify-center text-end text-sm max-md:mx-auto max-md:text-center'>
-                          <button onClick={applyHandler} className='bg-blue-600 p-2.5 px-10 text-white rounded'>{isAlreadyApplied ? 'Already Applied' : 'Apply Now'}</button>
-                          <p className='mt-1 text-gray-600'>Posted {moment(JobData.date).fromNow()}</p>
+                     <div className='flex flex-col justify-center text-sm max-md:mx-auto'>
+                          {renderApplyBlock('end')}
+                          <p className='mt-1 text-gray-600 text-end max-md:text-center'>Posted {moment(JobData.date).fromNow()}</p>
                      </div>     
                 </div>
 
@@ -149,7 +259,7 @@ const ApplyJob = () => {
                     <div className='w-full lg:w-2/3'>
                       <h2 className='font-bold text-2xl mb-4'>Job description</h2>
                          <div className='rich-text' dangerouslySetInnerHTML={{__html:JobData.description}}></div>
-                         <button onClick={applyHandler} className='bg-blue-600 p-2.5 px-10 text-white rounded mt-10'>{isAlreadyApplied ? 'Already Applied' : 'Apply Now'}</button>
+                         <div className='mt-10'>{renderApplyBlock('start')}</div>
 
                     </div>
 

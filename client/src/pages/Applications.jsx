@@ -8,6 +8,7 @@ import { useAuth, useUser } from '@clerk/clerk-react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import Loading from '../components/Loading'
+import { downloadResumeBlob, downloadResumePdfWithFallback } from '../utils/downloadResume'
 
 const Applications = () => {
 
@@ -17,6 +18,7 @@ const Applications = () => {
   const [isEdit, setIsEdit] = useState(false)
   const [resume, setResume] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [downloadingResume, setDownloadingResume] = useState(false)
 
   const {backendUrl, userData, userApplications, fetchUserData, fetchUserApplications } = useContext(AppContext)
 
@@ -46,6 +48,34 @@ const Applications = () => {
     }
 
     setResume(null)
+  }
+
+  const downloadResume = async () => {
+    const resumeUrl = userData?.resume
+    if (!resumeUrl || downloadingResume) return
+
+    setDownloadingResume(true)
+    try {
+      const token = await getToken()
+      if (token) {
+        const { data } = await axios.get(backendUrl + '/api/users/download-resume', {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob',
+        })
+        downloadResumeBlob(data, 'resume.pdf')
+        return
+      }
+
+      await downloadResumePdfWithFallback(resumeUrl, 'resume.pdf')
+    } catch {
+      try {
+        await downloadResumePdfWithFallback(resumeUrl, 'resume.pdf')
+      } catch {
+        toast.error('Could not download resume. Try again.')
+      }
+    } finally {
+      setDownloadingResume(false)
+    }
   }
 
   useEffect(() => {
@@ -108,9 +138,14 @@ const Applications = () => {
               </>
               :
               <div className='flex gap-2'>
-                <a href={userData.resume} target='_blank' rel='noreferrer' className='bg-blue-100 text-blue-600 px-4 py-2 rounded-lg'>
-                  Resume
-                </a>
+                <button
+                  type='button'
+                  onClick={downloadResume}
+                  disabled={downloadingResume}
+                  className='bg-blue-100 text-blue-600 px-4 py-2 rounded-lg disabled:opacity-70'
+                >
+                  {downloadingResume ? 'Downloading...' : 'Resume'}
+                </button>
                 <button onClick={()=> setIsEdit(true)} className='text-gray-500 border border-gray-300 rounded-lg px-4 py-2'>
                   Edit
                 </button>

@@ -16,10 +16,10 @@ const getBaseUrl = () => {
     return `http://localhost:${process.env.PORT || 5000}`
 }
 
-const uploadBuffer = (buffer, resourceType) =>
+const uploadBuffer = (buffer, resourceType, cloudinaryOptions = {}) =>
     new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-            { resource_type: resourceType },
+            { resource_type: resourceType, ...cloudinaryOptions },
             (error, result) => {
                 if (error) reject(error)
                 else resolve(result.secure_url)
@@ -28,19 +28,20 @@ const uploadBuffer = (buffer, resourceType) =>
         stream.end(buffer)
     })
 
-export const uploadFile = async (file, resourceType = "auto") => {
+export const uploadFile = async (file, resourceType = "auto", cloudinaryOptions = {}) => {
     if (!file) {
         throw new Error("No file provided")
     }
 
     try {
         if (file.buffer) {
-            return await uploadBuffer(file.buffer, resourceType)
+            return await uploadBuffer(file.buffer, resourceType, cloudinaryOptions)
         }
 
         if (file.path) {
             const result = await cloudinary.uploader.upload(file.path, {
                 resource_type: resourceType,
+                ...cloudinaryOptions,
             })
             return result.secure_url
         }

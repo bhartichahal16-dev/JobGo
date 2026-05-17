@@ -1,5 +1,5 @@
 import express from 'express'
-import { ChangeJobApplicationsStatus, changeVisiblity, getCompanyData, getCompanyJobApplicants, getCompanyPostedJobs, loginCompany, postJob, registerCompany } from '../controllers/companyController.js'
+import { ChangeJobApplicationsStatus, changeVisiblity, downloadApplicantResume, getCompanyData, getCompanyJobApplicants, getCompanyPostedJobs, loginCompany, postJob, registerCompany } from '../controllers/companyController.js'
 import upload from '../config/multer.js'
 import { protectCompany } from '../middleware/authMiddleware.js'
 
@@ -19,6 +19,9 @@ router.post('/post-job', protectCompany,postJob)
 
 // Get Applicants Data of Company
 router.get('/applicants', protectCompany, getCompanyJobApplicants)
+
+// Download applicant resume
+router.get('/download-resume/:applicationId', protectCompany, downloadApplicantResume)
 
 // Get Company Job list
 router.get('/list-jobs', protectCompany,getCompanyPostedJobs)

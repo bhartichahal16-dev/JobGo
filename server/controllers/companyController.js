@@ -4,6 +4,7 @@ import generateToken from "../utilis/generateToken.js";
 import { uploadFile } from "../utilis/uploadFile.js";
 import Job from "../models/Job.js";
 import JobApplication from "../models/JobApplication.js";
+import { fetchResumeBuffer } from "../utilis/fetchResumeBuffer.js";
 
 // Regiser a new company
 export const registerCompany = async (req,res) => {
@@ -151,6 +152,33 @@ export const getCompanyJobApplicants = async (req,res) => {
     }
     catch(error){
         res.json({success:false, message:error.message})
+    }
+}
+
+// Download applicant resume as PDF
+export const downloadApplicantResume = async (req, res) => {
+    try {
+        const companyId = req.company._id
+        const { applicationId } = req.params
+
+        const application = await JobApplication.findOne({ _id: applicationId, companyId })
+            .populate('userId', 'name resume')
+
+        if (!application?.userId?.resume) {
+            return res.status(404).json({ success: false, message: 'Resume not found' })
+        }
+
+        const buffer = await fetchResumeBuffer(application.userId.resume)
+        const safeName = (application.userId.name || 'applicant')
+            .replace(/[^\w\s-]/g, '')
+            .trim()
+            .replace(/\s+/g, '-') || 'applicant'
+
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}-resume.pdf"`)
+        return res.send(buffer)
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 

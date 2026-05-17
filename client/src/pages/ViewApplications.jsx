@@ -4,11 +4,14 @@ import AppContext from '../context/AppContext'
 import axios from 'axios'
 import Loading from '../components/Loading'
 import { toast } from 'react-toastify'
+import { downloadResumeBlob, downloadResumePdfWithFallback } from '../utils/downloadResume'
+
 const ViewApplications = () => {
 
   const {backendUrl, companyToken} = useContext(AppContext)
 
   const [applicants, setApplicants] = useState(false)
+  const [downloadingId, setDownloadingId] = useState(null)
 
   // function to fetch company Job Application data
   const fetchCompanyJobApplications = async () => {
@@ -32,6 +35,30 @@ const ViewApplications = () => {
 
 
   // function to update job application status
+
+  const downloadApplicantResume = async (applicant) => {
+    const resumeUrl = applicant.userId?.resume
+    if (!resumeUrl || downloadingId) return
+
+    const fileName = `${(applicant.userId.name || 'applicant').replace(/\s+/g, '-')}-resume.pdf`
+    setDownloadingId(applicant._id)
+
+    try {
+      const { data } = await axios.get(
+        `${backendUrl}/api/company/download-resume/${applicant._id}`,
+        { headers: { token: companyToken }, responseType: 'blob' }
+      )
+      downloadResumeBlob(data, fileName)
+    } catch {
+      try {
+        await downloadResumePdfWithFallback(resumeUrl, fileName)
+      } catch {
+        toast.error('Could not download resume. Try again.')
+      }
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   const changeJobApplicationStatus = async (id, status) => {
     try {
@@ -83,10 +110,15 @@ const ViewApplications = () => {
                      <td className='py-2 px-4 border-b max-sm:hidden'>{applicant.jobId.title}</td>
                      <td className='py-2 px-4 border-b max-sm:hidden'>{applicant.jobId.location}</td>
                      <td className='py-2 px-4 border-b'>
-                       <a href={applicant.userId.resume} target='_blank'
-                       className='bg-blue-50 text-blue-400 px-3 py-1 rounded inline-flex gap-2 items-center'>
-                        Resume <img src={assets.resume_download_icon} alt="" />
-                       </a>
+                       <button
+                         type='button'
+                         onClick={() => downloadApplicantResume(applicant)}
+                         disabled={downloadingId === applicant._id}
+                         className='bg-blue-50 text-blue-400 px-3 py-1 rounded inline-flex gap-2 items-center disabled:opacity-70'
+                       >
+                        {downloadingId === applicant._id ? 'Downloading...' : 'Resume'}
+                        <img src={assets.resume_download_icon} alt="" />
+                       </button>
                      </td>
 
                      <td className='py-2 px-4 border-b relative'>
