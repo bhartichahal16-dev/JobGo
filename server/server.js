@@ -13,22 +13,35 @@ import jobRoutes from './routes/jobRoutes.js'
 import userRouter from './routes/userRoutes.js'
 import {clerkMiddleware} from '@clerk/express'
 
-
-// Initialize Express
 const app = express();
-
-// Connect to database
-await connectDB()
-await connectCloudinary()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+let isReady = false
+
+const initApp = async () => {
+    if (isReady) return
+    await connectDB()
+    await connectCloudinary()
+    isReady = true
+}
+
 // Middlewares
 app.use(cors());
-// Clerk webhook must receive raw body for signature verification
+app.use(async (req, res, next) => {
+    try {
+        await initApp()
+        next()
+    } catch (error) {
+        console.error("Server init error:", error.message)
+        res.status(500).json({ success: false, message: error.message })
+    }
+});
 app.post('/webhooks', express.raw({ type: 'application/json' }), clerkWebhooks)
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+if (process.env.VERCEL !== "1") {
+    app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+}
 app.use(clerkMiddleware())
 
 // Routes
@@ -40,11 +53,21 @@ app.use('/api/company',companyRoutes)
 app.use('/api/jobs',jobRoutes)
 app.use('/api/users',userRouter)
 
-// Port
-const PORT = process.env.PORT || 5000;
-
 Sentry.setupExpressErrorHandler(app);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+app.use((err, req, res, next) => {
+    console.error(err.message)
+    res.status(500).json({ success: false, message: err.message || "Server error" })
+})
+
+const PORT = process.env.PORT || 5000;
+
+if (process.env.VERCEL !== "1") {
+    initApp().then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`)
+        })
+    })
+}
+
+export default app

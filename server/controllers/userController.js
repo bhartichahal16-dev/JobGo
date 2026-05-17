@@ -100,13 +100,14 @@ export const updateUserResume = async(req,res) => {
 
         const userData = await getOrCreateUser(userId)
 
-        userData.resume = await uploadFile(resumeFile.path, "raw")
+        userData.resume = await uploadFile(resumeFile, "raw")
 
         await userData.save()
 
         return res.json({success:true, message:'Resume Updated', user: userData})
     }
     catch(error){
+        console.error("updateUserResume:", error.message)
         res.json({success:false, message: error.message})
     }
 }
