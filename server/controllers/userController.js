@@ -4,6 +4,8 @@ import { uploadFile } from '../utilis/uploadFile.js'
 import getOrCreateUser from '../utilis/getOrCreateUser.js'
 import { getAuthUserId } from '../utilis/auth.js'
 import { fetchResumeBuffer } from '../utilis/fetchResumeBuffer.js'
+import { toPdfDownloadName } from '../utilis/resumeFileName.js'
+import path from 'path'
 
 // Get user data
 export const getUserData = async(req,res) => {
@@ -101,8 +103,16 @@ export const updateUserResume = async(req,res) => {
 
         const userData = await getOrCreateUser(userId)
 
+        const originalName = resumeFile.originalname || 'resume.pdf'
+        const ext = path.extname(originalName).toLowerCase() || '.pdf'
+        const safeBase = path
+            .basename(originalName, ext)
+            .replace(/[^\w.-]/g, '_')
+            .slice(0, 80) || 'resume'
+
+        userData.resumeFileName = originalName
         userData.resume = await uploadFile(resumeFile, "raw", {
-            public_id: `jobgo-resumes/${userId}_${Date.now()}.pdf`,
+            public_id: `jobgo-resumes/${userId}_${Date.now()}_${safeBase}${ext}`,
         })
 
         await userData.save()
@@ -131,9 +141,14 @@ export const downloadUserResume = async (req, res) => {
         }
 
         const buffer = await fetchResumeBuffer(user.resume)
+        const downloadName = toPdfDownloadName(user.resumeFileName, user.name)
 
-        res.setHeader('Content-Type', 'application/pdf')
-        res.setHeader('Content-Disposition', 'attachment; filename="resume.pdf"')
+        res.setHeader('Content-Type', 'application/octet-stream')
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`
+        )
+        res.setHeader('Cache-Control', 'no-store')
         return res.send(buffer)
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message })

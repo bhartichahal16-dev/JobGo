@@ -8,7 +8,7 @@ import { useAuth, useUser } from '@clerk/clerk-react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import Loading from '../components/Loading'
-import { downloadResumeBlob, downloadResumePdfWithFallback } from '../utils/downloadResume'
+import { downloadUserResume } from '../utils/downloadResume'
 
 const Applications = () => {
 
@@ -56,23 +56,15 @@ const Applications = () => {
 
     setDownloadingResume(true)
     try {
-      const token = await getToken()
-      if (token) {
-        const { data } = await axios.get(backendUrl + '/api/users/download-resume', {
-          headers: { Authorization: `Bearer ${token}` },
-          responseType: 'blob',
-        })
-        downloadResumeBlob(data, 'resume.pdf')
-        return
-      }
-
-      await downloadResumePdfWithFallback(resumeUrl, 'resume.pdf')
+      await downloadUserResume({
+        resumeUrl,
+        backendUrl,
+        getToken,
+        originalFileName: userData?.resumeFileName,
+        fallbackName: userData?.name,
+      })
     } catch {
-      try {
-        await downloadResumePdfWithFallback(resumeUrl, 'resume.pdf')
-      } catch {
-        toast.error('Could not download resume. Try again.')
-      }
+      toast.error('Could not download resume. Try again.')
     } finally {
       setDownloadingResume(false)
     }
@@ -131,7 +123,13 @@ const Applications = () => {
               <>
                 <label className='flex items-center' htmlFor='resumeUpload'>
                   <p className='bg-blue-100 text-blue-600 px-4 py-2 rounded-lg mr-2'>{resume ? resume.name : 'Select Resume'}</p>
-                  <input id='resumeUpload' onChange={e => setResume(e.target.files[0])} accept='application/pdf' type="file" hidden/>
+                  <input
+                    id='resumeUpload'
+                    onChange={e => setResume(e.target.files[0])}
+                    accept='.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    type="file"
+                    hidden
+                  />
                   <img src={assets.profile_upload_icon} alt='' />
                 </label>
                 <button onClick={updateResume} className='bg-green-100 border border-green-400 rounded-lg px-4 py-2'>Save</button>

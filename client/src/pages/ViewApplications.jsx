@@ -4,7 +4,7 @@ import AppContext from '../context/AppContext'
 import axios from 'axios'
 import Loading from '../components/Loading'
 import { toast } from 'react-toastify'
-import { downloadResumeBlob, downloadResumePdfWithFallback } from '../utils/downloadResume'
+import { downloadApplicantResume as fetchAndDownloadApplicantResume } from '../utils/downloadResume'
 
 const ViewApplications = () => {
 
@@ -36,25 +36,23 @@ const ViewApplications = () => {
 
   // function to update job application status
 
-  const downloadApplicantResume = async (applicant) => {
+  const handleResumeDownload = async (applicant) => {
     const resumeUrl = applicant.userId?.resume
     if (!resumeUrl || downloadingId) return
 
-    const fileName = `${(applicant.userId.name || 'applicant').replace(/\s+/g, '-')}-resume.pdf`
     setDownloadingId(applicant._id)
 
     try {
-      const { data } = await axios.get(
-        `${backendUrl}/api/company/download-resume/${applicant._id}`,
-        { headers: { token: companyToken }, responseType: 'blob' }
-      )
-      downloadResumeBlob(data, fileName)
+      await fetchAndDownloadApplicantResume({
+        resumeUrl,
+        backendUrl,
+        companyToken,
+        applicationId: applicant._id,
+        originalFileName: applicant.userId?.resumeFileName,
+        fallbackName: applicant.userId?.name || 'applicant',
+      })
     } catch {
-      try {
-        await downloadResumePdfWithFallback(resumeUrl, fileName)
-      } catch {
-        toast.error('Could not download resume. Try again.')
-      }
+      toast.error('Could not download resume. Try again.')
     } finally {
       setDownloadingId(null)
     }
@@ -112,7 +110,7 @@ const ViewApplications = () => {
                      <td className='py-2 px-4 border-b'>
                        <button
                          type='button'
-                         onClick={() => downloadApplicantResume(applicant)}
+                         onClick={() => handleResumeDownload(applicant)}
                          disabled={downloadingId === applicant._id}
                          className='bg-blue-50 text-blue-400 px-3 py-1 rounded inline-flex gap-2 items-center disabled:opacity-70'
                        >

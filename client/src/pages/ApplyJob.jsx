@@ -13,7 +13,7 @@ import axios from 'axios'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { toast } from 'react-toastify'
 import { calculateAtsScore, extractJobKeywords, getScoreColor } from '../utils/atsScore'
-import { extractTextFromResumeUrl } from '../utils/resumeText'
+import { extractTextFromResume } from '../utils/resumeText'
 
 const ApplyJob = () => {
   
@@ -123,25 +123,32 @@ const ApplyJob = () => {
       if (!JobData || !isLoaded || !isSignedIn) return
 
       let resumeUrl = userData?.resume
+      let resumeFileName = userData?.resumeFileName
       if (!resumeUrl) {
         const user = await fetchUserData()
         resumeUrl = user?.resume
+        resumeFileName = user?.resumeFileName
       }
 
       if (!resumeUrl) return
 
       setAtsLoading(true)
       try {
-        const resumeText = await extractTextFromResumeUrl(resumeUrl)
+        const resumeText = await extractTextFromResume({
+          resumeUrl,
+          resumeFileName,
+          backendUrl,
+          getToken,
+        })
         const jobKeywords = extractJobKeywords(JobData)
         const result = calculateAtsScore(resumeText, jobKeywords)
 
         if (!cancelled) {
           setAtsScore(result.score)
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setAtsError('Could not read resume for ATS check')
+          setAtsError(error.message || 'Could not read resume for ATS check')
         }
       } finally {
         if (!cancelled) {

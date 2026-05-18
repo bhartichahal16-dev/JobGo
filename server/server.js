@@ -42,7 +42,27 @@ app.use(express.json());
 if (process.env.VERCEL !== "1") {
     app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 }
-app.use(clerkMiddleware())
+// Clerk trusted origins = where your React app runs (browser), NOT this API port.
+// API listens on PORT below (default 5000). Client uses VITE_BACKEND_URL=http://localhost:5000
+const devFrontendOrigins = [
+    'http://localhost:5173', // Vite dev (npm run dev)
+    'http://localhost:4173', // Vite preview (npm run preview)
+]
+
+const clerkAuthorizedParties = [
+    ...devFrontendOrigins,
+    process.env.CLIENT_URL?.trim(),
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+]
+    .filter(Boolean)
+
+app.use(
+    clerkMiddleware(
+        clerkAuthorizedParties.length > 0
+            ? { authorizedParties: clerkAuthorizedParties }
+            : undefined
+    )
+)
 
 // Routes
 app.get("/", (req, res) => res.send("API Working"));

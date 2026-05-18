@@ -21,11 +21,18 @@ export const fetchResumeBuffer = async (resumeUrl) => {
     return fs.readFileSync(filePath)
   }
 
+  // Cloudinary raw PDF — use the stored URL directly (fl_attachment breaks raw uploads)
   const response = await fetch(resumeUrl)
   if (!response.ok) {
     throw new Error('Failed to fetch resume from storage')
   }
 
   const arrayBuffer = await response.arrayBuffer()
-  return Buffer.from(arrayBuffer)
+  const buffer = Buffer.from(arrayBuffer)
+
+  if (buffer.length === 0) {
+    throw new Error('Resume file is empty')
+  }
+
+  return buffer
 }

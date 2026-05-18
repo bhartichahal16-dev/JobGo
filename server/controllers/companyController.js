@@ -5,6 +5,7 @@ import { uploadFile } from "../utilis/uploadFile.js";
 import Job from "../models/Job.js";
 import JobApplication from "../models/JobApplication.js";
 import { fetchResumeBuffer } from "../utilis/fetchResumeBuffer.js";
+import { toPdfDownloadName } from "../utilis/resumeFileName.js";
 
 // Regiser a new company
 export const registerCompany = async (req,res) => {
@@ -144,7 +145,7 @@ export const getCompanyJobApplicants = async (req,res) => {
 
      // Find Job applications for the user and populate related data
      const applications = await JobApplication.find({companyId})
-     .populate('userId', 'name image resume')
+     .populate('userId', 'name image resume resumeFileName')
      .populate('jobId', 'title location category salary level')
      .exec()
 
@@ -162,20 +163,24 @@ export const downloadApplicantResume = async (req, res) => {
         const { applicationId } = req.params
 
         const application = await JobApplication.findOne({ _id: applicationId, companyId })
-            .populate('userId', 'name resume')
+            .populate('userId', 'name resume resumeFileName')
 
         if (!application?.userId?.resume) {
             return res.status(404).json({ success: false, message: 'Resume not found' })
         }
 
         const buffer = await fetchResumeBuffer(application.userId.resume)
-        const safeName = (application.userId.name || 'applicant')
-            .replace(/[^\w\s-]/g, '')
-            .trim()
-            .replace(/\s+/g, '-') || 'applicant'
+        const downloadName = toPdfDownloadName(
+            application.userId.resumeFileName,
+            application.userId.name || 'applicant'
+        )
 
-        res.setHeader('Content-Type', 'application/pdf')
-        res.setHeader('Content-Disposition', `attachment; filename="${safeName}-resume.pdf"`)
+        res.setHeader('Content-Type', 'application/octet-stream')
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`
+        )
+        res.setHeader('Cache-Control', 'no-store')
         return res.send(buffer)
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message })
