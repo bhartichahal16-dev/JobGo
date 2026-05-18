@@ -1,7 +1,22 @@
 import axios from 'axios'
 import { toPdfDownloadName } from './resumeFileName'
 
-export const getResumeFetchUrl = (url) => url
+const parseFilenameFromHeaders = (headers, fallback) => {
+  const disposition = headers?.['content-disposition'] || headers?.['Content-Disposition']
+  if (!disposition) return fallback
+
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;\n]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1].replace(/"/g, ''))
+  }
+
+  const plainMatch = disposition.match(/filename="?([^";\n]+)"?/i)
+  if (plainMatch?.[1]) {
+    return plainMatch[1].replace(/"/g, '')
+  }
+
+  return fallback
+}
 
 const isValidResumeBlob = async (blob) => {
   if (!(blob instanceof Blob) || blob.size < 4) return false
@@ -13,10 +28,15 @@ const isValidResumeBlob = async (blob) => {
   return true
 }
 
-export const downloadResumeBlob = (blob, fileName, { alreadyPdfName = false } = {}) => {
-  const safeName = alreadyPdfName ? fileName : toPdfDownloadName(fileName)
+export const downloadResumeBlob = (blob, fileName) => {
+  const safeName = toPdfDownloadName(fileName)
 
-  const url = URL.createObjectURL(blob)
+  const file =
+    blob instanceof File
+      ? new File([blob], safeName, { type: blob.type || 'application/octet-stream' })
+      : new File([blob], safeName, { type: 'application/octet-stream' })
+
+  const url = URL.createObjectURL(file)
   const link = document.createElement('a')
   link.href = url
   link.setAttribute('download', safeName)
@@ -27,48 +47,49 @@ export const downloadResumeBlob = (blob, fileName, { alreadyPdfName = false } = 
   setTimeout(() => {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-  }, 200)
+  }, 500)
 }
 
-export const downloadResumePdfWithFallback = async (resumeUrl, fileName) => {
-  const response = await fetch(getResumeFetchUrl(resumeUrl))
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch resume')
+const getClerkToken = async (getToken) => {
+  if (!getToken) return null
+  try {
+    return await getToken({ skipCache: true })
+  } catch {
+    return await getToken()
   }
-
-  const blob = await response.blob()
-
-  if (!(await isValidResumeBlob(blob))) {
-    throw new Error('Resume file is empty')
-  }
-
-  downloadResumeBlob(blob, fileName, { alreadyPdfName: true })
 }
 
-export const downloadResumeFromApi = async ({
-  backendUrl,
-  getToken,
-  headers = {},
-  apiPath,
+const downloadBlobFromApi = async ({
+  url,
+  headers,
   fileName,
 }) => {
-  const token = await getToken?.()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  const response = await axios.get(`${backendUrl}${apiPath}`, {
-    headers: { Authorization: `Bearer ${token}`, ...headers },
+  const response = await axios.get(url, {
+    headers,
     responseType: 'blob',
-    validateStatus: (status) => status === 200,
+    validateStatus: (status) => status >= 200 && status < 300,
   })
 
-  if (!(await isValidResumeBlob(response.data))) {
-    throw new Error('Invalid resume response')
+  const contentType = response.headers['content-type'] || ''
+  if (contentType.includes('application/json')) {
+    const message = await response.data.text()
+    try {
+      const parsed = JSON.parse(message)
+      throw new Error(parsed.message || 'Download failed')
+    } catch (parseError) {
+      if (parseError.message && parseError.message !== 'Download failed') {
+        throw parseError
+      }
+      throw new Error(message || 'Download failed')
+    }
   }
 
-  downloadResumeBlob(response.data, fileName, { alreadyPdfName: true })
+  if (!(await isValidResumeBlob(response.data))) {
+    throw new Error('Invalid resume file received')
+  }
+
+  const resolvedName = parseFilenameFromHeaders(response.headers, fileName)
+  downloadResumeBlob(response.data, resolvedName)
 }
 
 export const downloadUserResume = async ({
@@ -82,23 +103,23 @@ export const downloadUserResume = async ({
     throw new Error('No resume URL')
   }
 
-  const fileName = toPdfDownloadName(originalFileName, fallbackName)
-
-  if (backendUrl && getToken) {
-    try {
-      await downloadResumeFromApi({
-        backendUrl,
-        getToken,
-        apiPath: '/api/users/download-resume',
-        fileName,
-      })
-      return
-    } catch {
-      // API failed — try direct Cloudinary fetch
-    }
+  const apiBase = backendUrl?.replace(/\/$/, '')
+  if (!apiBase) {
+    throw new Error('Backend URL is not configured')
   }
 
-  await downloadResumePdfWithFallback(resumeUrl, fileName)
+  const fileName = toPdfDownloadName(originalFileName, fallbackName)
+  const token = await getClerkToken(getToken)
+
+  if (!token) {
+    throw new Error('Please login to download your resume')
+  }
+
+  await downloadBlobFromApi({
+    url: `${apiBase}/api/users/download-resume`,
+    headers: { Authorization: `Bearer ${token}` },
+    fileName,
+  })
 }
 
 export const downloadApplicantResume = async ({
@@ -113,34 +134,20 @@ export const downloadApplicantResume = async ({
     throw new Error('No resume URL')
   }
 
-  const fileName = toPdfDownloadName(originalFileName, fallbackName)
-
-  if (backendUrl && companyToken && applicationId) {
-    try {
-      const response = await axios.get(
-        `${backendUrl}/api/company/download-resume/${applicationId}`,
-        {
-          headers: { token: companyToken },
-          responseType: 'blob',
-          validateStatus: (status) => status === 200,
-        }
-      )
-
-      const contentType = response.headers['content-type'] || ''
-      if (
-        contentType.includes('application/json') ||
-        !(await isValidResumeBlob(response.data))
-      ) {
-        throw new Error('Invalid resume response')
-      }
-
-      downloadResumeBlob(response.data, fileName, { alreadyPdfName: true })
-      return
-
-    } catch {
-      // fall through to Cloudinary
-    }
+  const apiBase = backendUrl?.replace(/\/$/, '')
+  if (!apiBase) {
+    throw new Error('Backend URL is not configured')
   }
 
-  await downloadResumePdfWithFallback(resumeUrl, fileName)
+  if (!companyToken) {
+    throw new Error('Please login as recruiter to download resume')
+  }
+
+  const fileName = toPdfDownloadName(originalFileName, fallbackName)
+
+  await downloadBlobFromApi({
+    url: `${apiBase}/api/company/download-resume/${applicationId}`,
+    headers: { token: companyToken },
+    fileName,
+  })
 }

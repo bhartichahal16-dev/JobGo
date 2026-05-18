@@ -39,6 +39,15 @@ const getExtension = (resumeFileName = '', resumeUrl = '') => {
   return dot > -1 ? urlPath.slice(dot) : ''
 }
 
+const getClerkToken = async (getToken) => {
+  if (!getToken) return null
+  try {
+    return await getToken({ skipCache: true })
+  } catch {
+    return await getToken()
+  }
+}
+
 export const fetchResumeArrayBuffer = async ({
   resumeUrl,
   backendUrl,
@@ -48,24 +57,21 @@ export const fetchResumeArrayBuffer = async ({
     throw new Error('No resume URL')
   }
 
-  if (backendUrl && getToken) {
-    const token = await getToken()
+  const apiBase = backendUrl?.replace(/\/$/, '')
+
+  if (apiBase && getToken) {
+    const token = await getClerkToken(getToken)
     if (token) {
-      const { data } = await axios.get(`${backendUrl}/api/users/download-resume`, {
+      const { data } = await axios.get(`${apiBase}/api/users/download-resume`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'arraybuffer',
-        validateStatus: (status) => status === 200,
+        validateStatus: (status) => status >= 200 && status < 300,
       })
       return data
     }
   }
 
-  const response = await fetch(resumeUrl)
-  if (!response.ok) {
-    throw new Error('Could not load resume file')
-  }
-
-  return response.arrayBuffer()
+  throw new Error('Please login to run ATS check on your resume')
 }
 
 const extractTextFromPdfBuffer = async (buffer) => {
@@ -109,9 +115,4 @@ export const extractTextFromResume = async ({
   }
 
   throw new Error('Unsupported resume format for ATS check')
-}
-
-/** @deprecated use extractTextFromResume */
-export const extractTextFromResumeUrl = async (resumeUrl) => {
-  return extractTextFromResume({ resumeUrl })
 }

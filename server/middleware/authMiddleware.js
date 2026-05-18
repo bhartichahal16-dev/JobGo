@@ -1,23 +1,23 @@
 import jwt from 'jsonwebtoken'
 import Company from '../models/Company.js'
 
-export const protectCompany = async (req,res,next) => {
+export const protectCompany = async (req, res, next) => {
+  const token = req.headers.token
 
-    const token = req.headers.token
-    
-    if(!token){
-        return res.json({success:false, message:'Not authorized, login Again'})
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Not authorized, login Again' })
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    req.company = await Company.findById(decoded.id).select('-password')
+
+    if (!req.company) {
+      return res.status(401).json({ success: false, message: 'Company not found' })
     }
 
-    try {
-        const decoded = jwt.verify(token,process.env.JWT_SECRET)
-
-        req.company = await Company.findById(decoded.id).select('-password')
-
-        next()
-    }
-    catch (error){
-        res.json({success:false, message:error.message})
-    }
-
+    next()
+  } catch (error) {
+    return res.status(401).json({ success: false, message: error.message })
+  }
 }

@@ -11,7 +11,8 @@ import companyRoutes from './routes/companyRoutes.js'
 import connectCloudinary from "./config/cloudinary.js";
 import jobRoutes from './routes/jobRoutes.js'
 import userRouter from './routes/userRoutes.js'
-import {clerkMiddleware} from '@clerk/express'
+import { clerkMiddleware } from '@clerk/express'
+import { getClerkAuthorizedParties } from './utilis/clerkOrigins.js'
 
 const app = express();
 
@@ -27,7 +28,13 @@ const initApp = async () => {
 }
 
 // Middlewares
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    exposedHeaders: ['Content-Disposition', 'Content-Type'],
+  })
+)
 app.use(async (req, res, next) => {
     try {
         await initApp()
@@ -42,26 +49,12 @@ app.use(express.json());
 if (process.env.VERCEL !== "1") {
     app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 }
-// Clerk trusted origins = where your React app runs (browser), NOT this API port.
-// API listens on PORT below (default 5000). Client uses VITE_BACKEND_URL=http://localhost:5000
-const devFrontendOrigins = [
-    'http://localhost:5173', // Vite dev (npm run dev)
-    'http://localhost:4173', // Vite preview (npm run preview)
-]
-
-const clerkAuthorizedParties = [
-    ...devFrontendOrigins,
-    process.env.CLIENT_URL?.trim(),
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-]
-    .filter(Boolean)
+const clerkAuthorizedParties = getClerkAuthorizedParties()
 
 app.use(
-    clerkMiddleware(
-        clerkAuthorizedParties.length > 0
-            ? { authorizedParties: clerkAuthorizedParties }
-            : undefined
-    )
+  clerkMiddleware({
+    authorizedParties: clerkAuthorizedParties,
+  })
 )
 
 // Routes

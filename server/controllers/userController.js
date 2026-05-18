@@ -9,7 +9,7 @@ import path from 'path'
 
 // Get user data
 export const getUserData = async(req,res) => {
-    const userId = getAuthUserId(req)
+    const userId = await getAuthUserId(req)
 
     if (!userId) {
         return res.json({ success: false, message: 'Unauthorized. Please login again.' })
@@ -28,7 +28,7 @@ export const applyforJob = async(req,res) => {
 
     const {jobId} = req.body
 
-    const userId = getAuthUserId(req)
+    const userId = await getAuthUserId(req)
 
     if (!userId) {
         return res.json({ success: false, message: 'Unauthorized. Please login again.' })
@@ -68,7 +68,7 @@ export const applyforJob = async(req,res) => {
 
 // Get user applied applications
 export const getUserJobApplications = async(req,res) => {
-    const userId = getAuthUserId(req)
+    const userId = await getAuthUserId(req)
 
     if (!userId) {
         return res.json({ success: false, message: 'Unauthorized. Please login again.' })
@@ -88,7 +88,7 @@ export const getUserJobApplications = async(req,res) => {
 
 // update user profile (resume)
 export const updateUserResume = async(req,res) => {
-    const userId = getAuthUserId(req)
+    const userId = await getAuthUserId(req)
 
     if (!userId) {
         return res.json({ success: false, message: 'Unauthorized. Please login again.' })
@@ -127,7 +127,7 @@ export const updateUserResume = async(req,res) => {
 
 // Download user's resume as PDF
 export const downloadUserResume = async (req, res) => {
-    const userId = getAuthUserId(req)
+    const userId = await getAuthUserId(req)
 
     if (!userId) {
         return res.status(401).json({ success: false, message: 'Unauthorized. Please login again.' })
