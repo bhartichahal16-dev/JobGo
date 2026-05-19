@@ -12,5 +12,13 @@ export const getClerkAuthorizedParties = () => {
 
   const dev = ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:3000']
 
-  return [...new Set([...dev, ...fromEnv])]
+  const vercelDefaults = []
+  if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
+    if (process.env.CLIENT_URL?.trim()) {
+      vercelDefaults.push(process.env.CLIENT_URL.trim())
+    }
+    vercelDefaults.push('https://job-go-client.vercel.app')
+  }
+
+  return [...new Set([...dev, ...fromEnv, ...vercelDefaults])]
 }

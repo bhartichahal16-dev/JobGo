@@ -36,7 +36,10 @@ const ViewApplications = () => {
 
   // function to update job application status
 
-  const handleResumeDownload = async (applicant) => {
+  const handleResumeDownload = async (event, applicant) => {
+    event?.preventDefault()
+    event?.stopPropagation()
+
     const resumeUrl = applicant.userId?.resume
     if (!resumeUrl || downloadingId) return
 
@@ -51,8 +54,8 @@ const ViewApplications = () => {
         originalFileName: applicant.userId?.resumeFileName,
         fallbackName: applicant.userId?.name || 'applicant',
       })
-    } catch {
-      toast.error('Could not download resume. Try again.')
+    } catch (error) {
+      toast.error(error.message || 'Could not download resume. Try again.')
     } finally {
       setDownloadingId(null)
     }
@@ -110,7 +113,7 @@ const ViewApplications = () => {
                      <td className='py-2 px-4 border-b'>
                        <button
                          type='button'
-                         onClick={() => handleResumeDownload(applicant)}
+                         onClick={(e) => handleResumeDownload(e, applicant)}
                          disabled={downloadingId === applicant._id}
                          className='bg-blue-50 text-blue-400 px-3 py-1 rounded inline-flex gap-2 items-center disabled:opacity-70'
                        >

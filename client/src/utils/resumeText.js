@@ -59,19 +59,26 @@ export const fetchResumeArrayBuffer = async ({
 
   const apiBase = backendUrl?.replace(/\/$/, '')
 
-  if (apiBase && getToken) {
-    const token = await getClerkToken(getToken)
-    if (token) {
-      const { data } = await axios.get(`${apiBase}/api/users/download-resume`, {
-        headers: { Authorization: `Bearer ${token}` },
-        responseType: 'arraybuffer',
-        validateStatus: (status) => status >= 200 && status < 300,
-      })
-      return data
-    }
+  if (!apiBase) {
+    throw new Error('Backend URL is not configured')
   }
 
-  throw new Error('Please login to run ATS check on your resume')
+  if (!getToken) {
+    throw new Error('Please login to run ATS check')
+  }
+
+  const token = await getClerkToken(getToken)
+  if (!token) {
+    throw new Error('Please login to run ATS check')
+  }
+
+  const { data } = await axios.get(`${apiBase}/api/users/download-resume`, {
+    headers: { Authorization: `Bearer ${token}` },
+    responseType: 'arraybuffer',
+    validateStatus: (status) => status >= 200 && status < 300,
+  })
+
+  return data
 }
 
 const extractTextFromPdfBuffer = async (buffer) => {

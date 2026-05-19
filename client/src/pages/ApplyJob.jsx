@@ -186,7 +186,11 @@ const ApplyJob = () => {
           </p>
         )
       }
-      return null
+      return (
+        <p className='text-sm text-gray-500'>
+          ATS check pending — refresh if this stays empty
+        </p>
+      )
     }
 
     return (

@@ -50,7 +50,10 @@ const Applications = () => {
     setResume(null)
   }
 
-  const downloadResume = async () => {
+  const downloadResume = async (event) => {
+    event?.preventDefault()
+    event?.stopPropagation()
+
     const resumeUrl = userData?.resume
     if (!resumeUrl || downloadingResume) return
 
@@ -63,8 +66,8 @@ const Applications = () => {
         originalFileName: userData?.resumeFileName,
         fallbackName: userData?.name,
       })
-    } catch {
-      toast.error('Could not download resume. Try again.')
+    } catch (error) {
+      toast.error(error.message || 'Could not download resume. Try again.')
     } finally {
       setDownloadingResume(false)
     }

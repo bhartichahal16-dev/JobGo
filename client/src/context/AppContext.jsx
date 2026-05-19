@@ -2,12 +2,13 @@ import { createContext, useEffect, useState } from "react"
 import axios from "axios"
 import { useAuth, useUser } from "@clerk/clerk-react"
 import { toast } from "react-toastify"
+import { getBackendUrl } from "../config/backendUrl"
 
 export const AppContext = createContext()
 
 export const AppContextProvider = (props) => {
     
-    const backendUrl = import.meta.env.VITE_BACKEND_URL
+    const backendUrl = getBackendUrl()
 
     const { user, isLoaded } = useUser()
 
